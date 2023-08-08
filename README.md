@@ -358,8 +358,9 @@ GRDB offers two libraries, `GRDB` and `GRDB-dynamic`. Pick only one. When in dou
 
 ## Carthage
 
-[Carthage](https://github.com/Carthage/Carthage) is **unsupported**. For some context about this decision, see [#433](https://github.com/groue/GRDB.swift/issues/433).
-
+```
+github "tatarinova0903/GRDB.swift.git" "{commit number}"
+```
 
 ## Manually
 
