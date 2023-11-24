@@ -2,10 +2,19 @@ extension Database {
     
     // MARK: - Database Observation
     
-    /// Adds a transaction observer, so that it gets notified of
-    /// database changes and transactions.
+    /// Adds a transaction observer on the database connection, so that it
+    /// gets notified of database changes and transactions.
     ///
     /// This method has no effect on read-only database connections.
+    ///
+    /// For example:
+    ///
+    /// ```swift
+    /// let myObserver = MyObserver()
+    /// try dbQueue.write { db in
+    ///     db.add(transactionObserver: myObserver)
+    /// }
+    /// ```
     ///
     /// - parameter transactionObserver: A transaction observer.
     /// - parameter extent: The duration of the observation. The default is
@@ -20,21 +29,30 @@ extension Database {
         
         // Drop cached statements that delete, because the addition of an
         // observer may change the need for truncate optimization prevention.
-        publicStatementCache.removeAll { $0.isDeleteStatement }
-        internalStatementCache.removeAll { $0.isDeleteStatement }
+        publicStatementCache.removeAll { $0.canDeleteRows }
+        internalStatementCache.removeAll { $0.canDeleteRows }
         
         observationBroker.add(transactionObserver: transactionObserver, extent: extent)
     }
     
-    /// Removes a transaction observer.
+    /// Removes a transaction observer from the database connection.
+    ///
+    /// For example:
+    ///
+    /// ```swift
+    /// let myObserver = MyObserver()
+    /// try dbQueue.write { db in
+    ///     db.remove(transactionObserver: myObserver)
+    /// }
+    /// ```
     public func remove(transactionObserver: some TransactionObserver) {
         SchedulingWatchdog.preconditionValidQueue(self)
         guard let observationBroker else { return }
         
         // Drop cached statements that delete, because the removal of an
         // observer may change the need for truncate optimization prevention.
-        publicStatementCache.removeAll { $0.isDeleteStatement }
-        internalStatementCache.removeAll { $0.isDeleteStatement }
+        publicStatementCache.removeAll { $0.canDeleteRows }
+        internalStatementCache.removeAll { $0.canDeleteRows }
         
         observationBroker.remove(transactionObserver: transactionObserver)
     }
@@ -1095,7 +1113,12 @@ public struct DatabaseEvent {
         self.impl = impl
     }
     
-    init(kind: Kind, rowID: Int64, databaseNameCString: UnsafePointer<Int8>?, tableNameCString: UnsafePointer<Int8>?) {
+    init(
+        kind: Kind,
+        rowID: Int64,
+        databaseNameCString: UnsafePointer<CChar>?,
+        tableNameCString: UnsafePointer<CChar>?)
+    {
         self.init(
             kind: kind,
             rowID: rowID,
@@ -1131,8 +1154,8 @@ private protocol DatabaseEventImpl {
 /// Optimization: MetalDatabaseEventImpl does not create Swift strings from raw
 /// SQLite char* until actually asked for databaseName or tableName.
 private struct MetalDatabaseEventImpl: DatabaseEventImpl {
-    let databaseNameCString: UnsafePointer<Int8>?
-    let tableNameCString: UnsafePointer<Int8>?
+    let databaseNameCString: UnsafePointer<CChar>?
+    let tableNameCString: UnsafePointer<CChar>?
     
     var databaseName: String { String(cString: databaseNameCString!) }
     var tableName: String { String(cString: tableNameCString!) }
@@ -1267,8 +1290,8 @@ public struct DatabasePreUpdateEvent {
         kind: Kind,
         initialRowID: Int64,
         finalRowID: Int64,
-        databaseNameCString: UnsafePointer<Int8>?,
-        tableNameCString: UnsafePointer<Int8>?)
+        databaseNameCString: UnsafePointer<CChar>?,
+        tableNameCString: UnsafePointer<CChar>?)
     {
         self.init(
             kind: kind,
@@ -1324,8 +1347,8 @@ private struct MetalDatabasePreUpdateEventImpl: DatabasePreUpdateEventImpl {
     let connection: SQLiteConnection
     let kind: DatabasePreUpdateEvent.Kind
     
-    let databaseNameCString: UnsafePointer<Int8>?
-    let tableNameCString: UnsafePointer<Int8>?
+    let databaseNameCString: UnsafePointer<CChar>?
+    let tableNameCString: UnsafePointer<CChar>?
     
     var databaseName: String { String(cString: databaseNameCString!) }
     var tableName: String { String(cString: tableNameCString!) }
